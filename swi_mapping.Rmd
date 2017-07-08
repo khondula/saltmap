@@ -1,0 +1,237 @@
+---
+title: "SWI mapping"
+author: "Kelly Hondula"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+---
+
+This is a test for mapping the spatial extent of salt water intrusion on farmfields across Somerset, Dorchester, and Worchester counties in Maryland. This is very simple unsupervised pixel-based classification, but we could probably do supervised classification and explore using object-based classification (shapes instead of just pixel values). Once pixels are classified/identified as being the target, it is possible to calculate the area based on the resolution of the image. 
+
+```{r, message=FALSE}
+# load libraries
+
+library(raster)
+library(randomForest)
+library(cluster)
+library(RStoolbox)
+library(sp)
+library(rgdal)
+library(leaflet)
+library(dplyr)
+
+```
+
+## Data
+
+* [Imagery](http://imagery.geodata.md.gov:8080/ExpressZip) - includes 2013 and 2015 NAIP, 2013 and 2016 six inch CIR imagery, and 2010, 2013, and 2016 six inch imagery. 
+* [MDP land use land cover interactive map](http://mdpgis.mdp.state.md.us/landuse/imap/index.html)
+* [Download for 2010 LULC shapefile data by county](http://planning.maryland.gov/OurProducts/downloadFiles.shtml)
+
+## Somerset county land use data
+
+```{r}
+# import someserset county land use data
+shp <- "../data/Some_2010LULC/"
+lulc <- readOGR(dsn = shp,
+                    layer = "Some_2010LULC",
+                    stringsAsFactors = FALSE)
+
+# spatial transformation for plotting in leaflet
+lulcT <- spTransform(lulc, CRS("+proj=longlat +datum=WGS84 +no_defs"))
+# table(lulcT@data$LU_CODE)
+```
+
+[guide to `LU_CODE`](http://geodata.md.gov/imap/rest/services/PlanningCadastre/MD_LandUseLandCover/MapServer/1) shows that agriculture are codes 21, 22, 23, 25, 241, 242, 20
+
+```{r}
+lulc_AG <- lulcT[lulcT$LU_CODE %in% c(21, 22, 23, 25, 241, 242, 20),]
+```
+
+2010 agriculture land use data looks to match up pretty well with field locations from esri imagery (unsure of date). This could be used as a filter for the imagery data to mask out everything else and just use the farm fields, which would likely make the classification easier. I didn't line up the image data with this shapefile to do that yet. 
+
+```{r}
+# plot(lulc_AG)
+leaflet(lulc_AG) %>%
+  addProviderTiles("Esri.WorldImagery") %>%
+  addPolygons()
+
+```
+
+## Imagery classification
+
+Downloaded imagery data to test out classification. 
+
+### Greenhead farm area 
+
+CIR data - this includes color and infrared so has 4 bands instead of just 3 (red/green/blue). I thought maybe the signature of SWI areas would show up better with this, but it probably also depends on the date it was taken. 
+
+```{r}
+cir <- brick("../data/greenhead_farm/EasternShoreCIR2016/greenhead_farm.jpg")
+# plot(cir)
+raster::plotRGB(cir)
+```
+
+6 inch imagery data
+
+```{r}
+img <- brick("../data/greenhead_farm/EasternShore2016/greenhead_farm.jpg")
+# plot(img)
+raster::plotRGB(img)
+
+```
+
+
+2015 NAIP data - the white areas of SWI show up well here
+
+```{r}
+naip <- brick("../data/greenhead_farm/NAIP2015/greenhead_farm.jpg")
+naip <- raster("../data/greenhead_farm/NAIP2015/greenhead_farm.jpg")
+plot(boundaries(naip))
+# plot(naip) # plots each of RGB raster layers independently
+raster::plotRGB(naip)
+```
+
+```{r}
+naip2 <- raster("../data/NAIP2015/swi.tif")
+naip2 <- brick("../data/NAIP2015/swi.tif")
+# plot(naip) # plots each of RGB raster layers independently
+raster::plotRGB(naip2)
+plot(naip2)
+```
+
+Crop to farm areas
+```{r}
+lulc_AG <- spTransform(lulc_AG, crs(naip2))
+plot(naip2)
+plot(lulc_AG, add = TRUE)
+
+bbox(naip2)
+naip_farm <- mask(naip2, mask = lulc_AG)
+plot(naip_farm)
+```
+
+
+### Unsupervised classification
+
+Using the `unsuperClass()` function in the RStoolbox package, with 5 classes. Since there are field validated locations, could use a supervised algorithm based on a training set of data from these locations. Could also be improved with the masking to just farm land cover areas using the LULC data above. 
+
+```{r}
+set.seed(25)
+unC <- unsuperClass(naip_farm, nSamples = 100, nClasses = 5, nStarts = 5)
+# unC
+colors <- rainbow(5)
+plot(unC$map, col = colors, legend = FALSE, axes = FALSE, box = FALSE)
+
+```
+
+```{r}
+set.seed(25)
+unC <- unsuperClass(naip, nSamples = 100, nClasses = 5, nStarts = 5)
+# unC
+colors <- rainbow(5)
+plot(unC$map, col = colors, legend = FALSE, axes = FALSE, box = FALSE)
+
+```
+
+Seems like the road is getting grouped in, maybe try adding more classes. 
+
+```{r}
+set.seed(25)
+unC <- unsuperClass(naip, nSamples = 100, nClasses = 6, nStarts = 5)
+# unC
+colors <- rainbow(6)
+plot(unC$map, col = colors, legend = FALSE, axes = FALSE, box = FALSE)
+
+```
+
+10 classes
+
+```{r}
+set.seed(25)
+unC <- unsuperClass(naip, nSamples = 100, nClasses = 10, nStarts = 5)
+# unC
+colors <- rainbow(10)
+plot(unC$map, col = colors, legend = FALSE, axes = FALSE, box = FALSE)
+
+```
+Try using the 6 inch imagery data
+
+```{r}
+set.seed(25)
+unC <- unsuperClass(img, nSamples = 100, nClasses = 6, nStarts = 5)
+# unC
+colors <- rainbow(6)
+plot(unC$map, col = colors, legend = FALSE, axes = FALSE, box = FALSE)
+
+```
+
+
+Larger area with NAIP 2015 data
+```{r}
+naip2 <- brick("../data/NAIP2015/greenhead2.jpg")
+raster::plotRGB(naip2)
+```
+
+unsupervised classification with 6 classes picks up the farm field edges (green) it seems like, but also the white roofs. 
+
+```{r}
+set.seed(25)
+unC <- unsuperClass(naip2, nSamples = 100, nClasses = 6, nStarts = 5)
+# unC
+colors <- rainbow(6)
+plot(unC$map, col = colors, legend = FALSE, axes = FALSE, box = FALSE)
+
+```
+
+Almodinton area
+
+```{r}
+alm <- brick("../data/almodinton/NAIP2015/almodinton_3.jpg")
+raster::plotRGB(alm)
+```
+
+Classification
+
+```{r}
+set.seed(25)
+unC <- unsuperClass(alm, nSamples = 100, nClasses = 6, nStarts = 5)
+# unC
+
+colors <- rainbow(6)
+plot(unC$map, col = colors, legend = FALSE, axes = FALSE, box = FALSE)
+
+```
+
+10 classes
+```{r}
+set.seed(25)
+unC <- unsuperClass(alm, nSamples = 100, nClasses = 10, nStarts = 5)
+# unC
+
+colors <- rainbow(10)
+plot(unC$map, col = colors, legend = FALSE, axes = FALSE, box = FALSE)
+
+```
+
+## Fitzgerald farm area
+
+```{r}
+fitz <- brick("../data/fitzgerald_farm/NAIP2015/fitzgerald_farm.jpg")
+raster::plotRGB(fitz)
+```
+
+Classification (6)
+
+```{r}
+set.seed(25)
+unC <- unsuperClass(fitz, nSamples = 100, nClasses = 6, nStarts = 5)
+# unC
+
+colors <- rainbow(6)
+plot(unC$map, col = colors, legend = FALSE, axes = FALSE, box = FALSE)
+
+```
+
+

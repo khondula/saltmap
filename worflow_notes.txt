@@ -1,0 +1,21 @@
+Workflow
+
+buffer farmland to 200m 
+
+use unsupervised image classification to classify pixels
+
+use pixels of identified SWI to identify class of candidate SWI areas
+
+export polygons of candidate SWI areas for visual inspection
+
+hand edit polygon areas to identify correct polygons
+
+reclassify polygons of candidate SWI areas as true or not true SWI areas
+
+(this is still a subset of the whole farmland area)
+
+use training data (true classifications of SWI areas) in supervised classification
+
+assess accuracy of supervised classification
+
+estimate area using polygons in correct coordinate reference system
