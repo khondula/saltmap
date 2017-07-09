@@ -145,6 +145,4 @@ vsaltarea[12] <- runCropSalt(12)
 vsaltarea[13] <- runCropSalt(13)
 vsaltarea[14] <- runCropSalt(14)
 
-sum(vsaltarea)
-
 write.csv(as.data.frame(vsaltarea), "vsaltarea.csv")
