@@ -12,5 +12,10 @@ __Out of that area, how much was classified into the candidate salt water intrus
 
 * `validated_areas.R` - uses polygons created from visual inspection of candidate areas to crop candidate areas to validated areas with the `intersect()` function in rgeos.
 
+__What is the total area of validated polygons?__
+
+* supervised classification with training data, estimate total area with uncertainty using confusion matrix
+
+
 
 
