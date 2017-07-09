@@ -10,5 +10,7 @@ __Out of 112,229 acres, how much area was included in the tiles used for unsuper
 
 __Out of that area, how much was classified into the candidate salt water intrusion areas?__
 
+* `validated_areas.R` - uses polygons created from visual inspection of candidate areas to crop candidate areas to validated areas with the `intersect()` function in rgeos.
+
 
 
