@@ -121,4 +121,4 @@ img <- projectExtent(img, crs(lulc_AG))
 e56 <- crop(lulc_AG, extent(img))
 extentareas[13] <- sum(area(e56))/4046.86 # acres
 
-extentareas
+sum(extentareas)
